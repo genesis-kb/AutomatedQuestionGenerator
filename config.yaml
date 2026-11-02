@@ -1,0 +1,112 @@
+# AutomatedQuestionGenerator configuration. Secrets live in .env, not here.
+
+# Judge languages to generate. python3 is always generated (it computes expected outputs).
+# Add javascript / rust only when a problem must be solvable in them, or pass
+# `aqg generate --langs python3,javascript,rust`.
+languages: [python3]
+
+# Paths are relative to this file's directory.
+paths:
+  data_dir: data
+  runs_dir: runs
+  out_dir: out
+  logs_dir: logs
+  # Repos that must never be modified; their `git status` is checked before and after every run.
+  protected_repos:
+    - ../transcription_engine
+    - ../hello-bitcoin
+
+# One entry per LLM stage. provider: ollama | anthropic | bedrock | gemini | openai_compat | deepseek | groq
+# Stages not listed use `default`. See README "Appendix: LLM providers" for each provider's setup.
+# Bedrock (current): Claude in Amazon Bedrock, credentials from the default AWS chain (EC2 instance role,
+# AWS_PROFILE or AWS_* keys); nothing in .env. Region: optional per-stage `aws_region`, else AWS_REGION /
+# AWS_DEFAULT_REGION, else us-east-1. Model IDs carry the `anthropic.` prefix.
+# Claude Opus 4.6 runs every stage, in Hyderabad (ap-south-2) through the bedrock-runtime endpoint
+# (`bedrock_endpoint: runtime`; ap-south-2 has no bedrock-mantle endpoint) with the global inference profile.
+# This account has no Opus 5.5 access yet; once AWS grants it, change the model to "global.anthropic.claude-opus-5-5".
+# `reasoning_effort` is sent as Claude's effort (Opus 4.6: low|medium|high|max) with adaptive thinking: high for the
+# steps that decide correctness (concepts, spec, fact-check, reference solution, tests), medium for triage and the
+# statement prose. `temperature` is not sent to thinking models; it is kept for other providers.
+llm:
+  # Kimi K3 (Moonshot AI) on Bedrock, active now for a trial. Non-Claude Bedrock models go through Bedrock's
+  # OpenAI-compatible Chat Completions on bedrock-runtime, SigV4-signed with the instance role (no key, and
+  # bedrock_endpoint is ignored). "global." is the cheapest profile ($3/$15 per 1M tokens); use
+  # "in.moonshotai.kimi-k3" to keep data in India (Mumbai/Hyderabad, +10%). Kimi effort: none|low|medium|high|xhigh|max
+  # (the model's own default is max, so always set it). Moonshot recommends temperature 1.0 for its thinking models.
+  # The IAM role must allow bedrock:InvokeModel on foundation-model/moonshotai.* (README "Amazon Bedrock").
+  default:      {provider: bedrock, model: "global.moonshotai.kimi-k3", aws_region: ap-south-2, temperature: 1.0, reasoning_effort: medium}
+  s2_triage:    {provider: bedrock, model: "global.moonshotai.kimi-k3", aws_region: ap-south-2, temperature: 1.0, reasoning_effort: medium}
+  s2_extract:   {provider: bedrock, model: "global.moonshotai.kimi-k3", aws_region: ap-south-2, temperature: 1.0, reasoning_effort: high}
+  s3_spec:      {provider: bedrock, model: "global.moonshotai.kimi-k3", aws_region: ap-south-2, temperature: 1.0, reasoning_effort: high}
+  s4_reconcile: {provider: bedrock, model: "global.moonshotai.kimi-k3", aws_region: ap-south-2, temperature: 1.0, reasoning_effort: high}
+  s5_statement: {provider: bedrock, model: "global.moonshotai.kimi-k3", aws_region: ap-south-2, temperature: 1.0, reasoning_effort: medium}
+  s5_reference: {provider: bedrock, model: "global.moonshotai.kimi-k3", aws_region: ap-south-2, temperature: 1.0, reasoning_effort: high}
+  s5_tests:     {provider: bedrock, model: "global.moonshotai.kimi-k3", aws_region: ap-south-2, temperature: 1.0, reasoning_effort: high}
+  # Claude Opus 4.6 on Bedrock (the previous default): comment out the Kimi lines above and uncomment these.
+  # default:      {provider: bedrock, model: "global.anthropic.claude-opus-4-6-v1", aws_region: ap-south-2, bedrock_endpoint: runtime, temperature: 0.2, reasoning_effort: medium}
+  # s2_triage:    {provider: bedrock, model: "global.anthropic.claude-opus-4-6-v1", aws_region: ap-south-2, bedrock_endpoint: runtime, temperature: 0.0, reasoning_effort: medium}
+  # s2_extract:   {provider: bedrock, model: "global.anthropic.claude-opus-4-6-v1", aws_region: ap-south-2, bedrock_endpoint: runtime, temperature: 0.1, reasoning_effort: high}
+  # s3_spec:      {provider: bedrock, model: "global.anthropic.claude-opus-4-6-v1", aws_region: ap-south-2, bedrock_endpoint: runtime, temperature: 0.2, reasoning_effort: high}
+  # s4_reconcile: {provider: bedrock, model: "global.anthropic.claude-opus-4-6-v1", aws_region: ap-south-2, bedrock_endpoint: runtime, temperature: 0.0, reasoning_effort: high}
+  # s5_statement: {provider: bedrock, model: "global.anthropic.claude-opus-4-6-v1", aws_region: ap-south-2, bedrock_endpoint: runtime, temperature: 0.4, reasoning_effort: medium}
+  # s5_reference: {provider: bedrock, model: "global.anthropic.claude-opus-4-6-v1", aws_region: ap-south-2, bedrock_endpoint: runtime, temperature: 0.2, reasoning_effort: high}
+  # s5_tests:     {provider: bedrock, model: "global.anthropic.claude-opus-4-6-v1", aws_region: ap-south-2, bedrock_endpoint: runtime, temperature: 0.3, reasoning_effort: high}
+  # Groq alternative (needs GROQ_API_KEY in .env): comment out the bedrock lines above and uncomment these.
+  # gpt-oss-120b does the correctness steps, gpt-oss-20b only triage and the statement (20b left every fact
+  # unverified and failed test plans). Optional `reasoning_effort: low|medium|high` (groq / openai_compat only).
+  # default:      {provider: groq, model: "openai/gpt-oss-20b",  temperature: 0.2, reasoning_effort: low}
+  # s2_triage:    {provider: groq, model: "openai/gpt-oss-20b",  temperature: 0.0, reasoning_effort: low}
+  # s2_extract:   {provider: groq, model: "openai/gpt-oss-120b", temperature: 0.1, reasoning_effort: medium}
+  # s3_spec:      {provider: groq, model: "openai/gpt-oss-120b", temperature: 0.1, reasoning_effort: medium}
+  # s4_reconcile: {provider: groq, model: "openai/gpt-oss-120b", temperature: 0.0, reasoning_effort: medium}
+  # s5_statement: {provider: groq, model: "openai/gpt-oss-20b",  temperature: 0.4, reasoning_effort: low}
+  # s5_reference: {provider: groq, model: "openai/gpt-oss-120b", temperature: 0.0, reasoning_effort: medium}
+  # s5_tests:     {provider: groq, model: "openai/gpt-oss-120b", temperature: 0.3, reasoning_effort: medium}
+  request_timeout_s: 1800        # high effort can think for several minutes per call
+  max_schema_retries: 2
+
+pipeline:
+  max_problems_per_talk: 2
+  min_codeability: 3
+  chunk_tokens: 4000
+  chunk_overlap_tokens: 300
+  excerpt_match_threshold: 90      # rapidfuzz partial_ratio, 0-100
+  max_repair_loops: 3
+  min_hidden_tests: 10
+  max_samples: 3
+  random_tests: 8                   # generated by the LLM-written input generator
+  time_limit_s: 2.0
+  memory_limit_mb: 256
+  points_per_test: 1
+  candidate_batch: 20
+  # Used when a talk has no conference in the source DB.
+  fallback_conference: {name: "Bitcoin Talks", slug: "bitcoin-talks"}
+
+sandbox:
+  image: hello-bitcoin-runner
+  build_dir: ../hello-bitcoin/docker   # image is built from here automatically when missing
+  container_memory_mb: 1024
+  pids_limit: 64          # same as hello-bitcoin judge pool
+  cpus: 0.5               # same as hello-bitcoin judge pool (nano_cpus=0.5e9)
+  workers: 4
+  exec_deadline_s: 120
+
+# Web grounding via Tavily (only when TAVILY_API_KEY is set; otherwise grounding = transcript_only).
+search:
+  max_web_results: 5
+  max_passages: 6
+  passage_chars: 800
+  allow_domains:
+    - github.com
+    - bips.dev
+    - bitcoin.org
+    - bitcoincore.org
+    - bitcoinops.org
+    - learnmeabitcoin.com
+    - developer.bitcoin.org
+    - en.bitcoin.it
+
+logging:
+  file_level: DEBUG
+  rotate_mb: 10
+  rotate_backups: 5
