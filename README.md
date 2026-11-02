@@ -428,7 +428,7 @@ every run compares the siblings' `git status`, so they must be real git checkout
 
 ```bash
 mkdir -p ~/code/AQG && cd ~/code/AQG
-git clone https://github.com/Rasesh2005/AutomatedQuestionGenerator.git
+git clone https://github.com/genesis-kb/AutomatedQuestionGenerator.git
 git clone https://github.com/genesis-kb/hello-bitcoin.git
 git clone https://github.com/genesis-kb/transcription_engine.git   # only if Postgres runs on this machine
 cp AutomatedQuestionGenerator/.env.example AutomatedQuestionGenerator/.env   # .env is never committed
